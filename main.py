@@ -31,6 +31,13 @@ def test():
         data = "hello Class!"
         return jsonify({'data': data})
 
+@app.route('/KAN_server', methods=['GET'])
+def KAN_server():
+    url_lst = [config.KANURL1]
+    test_url = check_for_server(url_lst)
+    data = {'url': test_url}
+    return jsonify(data)
+
 # define a route for the API endpoint
 @app.route('/patient_server', methods=['GET'])
 def patient_server():
@@ -41,7 +48,7 @@ def patient_server():
         # get ip location 
         # connect to nearest edge cloud
     # url_lst = [config.PURL1, config.PURL2, config.PURL3]
-    url_lst = ['http://localhost:8000']
+    url_lst = [config.PURL1]
     test_url = check_for_server(url_lst)
     data = {'url': test_url}
     return jsonify(data)
@@ -52,7 +59,7 @@ def care_provider_server():
     print("IP: ", user_ip)
     print("PROVIDER LOGIN")
     # url_lst = [config.CPURL1] 
-    url_lst = ['http://localhost:8070']
+    url_lst = [config.CPURL1]
     test_url = check_for_server(url_lst)
     data = {'url': test_url}
     return jsonify(data)
@@ -67,7 +74,7 @@ def symptoms_server():
         # get ip location 
         # connect to nearest edge cloud
     # url_lst = [config.SURL1]
-    url_lst = ['http://localhost:8080']
+    url_lst = [config.SURL1]
     print("SURL: ",url_lst)
     test_url = check_for_server(url_lst)
     data = {'url': test_url}
@@ -82,7 +89,7 @@ def disease_server():
         # get ip location 
         # connect to nearest edge cloud
     # url_lst = [config.DURL1]
-    url_lst = ['http://localhost:8090']
+    url_lst = [config.DURL1]
     print("SURL: ",url_lst)
     test_url = check_for_server(url_lst)
     data = {'url': test_url}
@@ -227,6 +234,12 @@ def diagnose():
     print(disease_name, patient_id)
     result = confirm_diagnosis(disease_name, patient_id, care_provider_id)
     return("test")
+
+@app.route('/get_symptom_names', methods=['GET', 'POST'])
+def get_symptom_names():
+    data = request.get_json()
+    symptoms = get_symptom_info(data['symptoms'])
+    return jsonify(symptoms)
 
 
 

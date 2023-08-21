@@ -5,14 +5,6 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, accuracy_score
 from scipy.stats import t, ttest_ind
 
-
-# Read the CSV file into a pandas DataFrame as input
-# data = pd.read_csv('../symptoms_and_diseases.csv')
-# data = data.apply(lambda x: x.str.strip() if x.dtype == "object" else x)
-# data = data.apply(lambda x: x.str.rstrip() if x.dtype == "object" else x)
-
-# disease = "Bronchitis" 
-# symptoms = ['cough', 'loss of taste', 'shortness of breath']
 def do_stats_stuff(disease, symptoms):
     # Read the CSV file into a pandas DataFrame as input
     data = pd.read_csv('./updated_symptoms_and_disease.csv')
@@ -132,7 +124,7 @@ def learn(matrix, user_syptoms):
         if p_value < significance_level:
             print(f"Significant Disease: {disease} P-value: {p_value}")
             disease_out.append(disease)
-            p_value_out.append(p_value)
+            p_value_out.append("{:.4f}".format(p_value))
 
     # Find the row corresponding to the predicted disease
     predicted_disease_row = df.loc[df['Disease'] == predicted_disease[0]]

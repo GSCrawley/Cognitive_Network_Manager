@@ -76,3 +76,11 @@ correlating_symptoms = [symptom for symptom in symptoms if predicted_disease_row
 
 print("Correlating Symptoms to Predicted Disease:")
 print(correlating_symptoms)
+# Get feature importances from the trained model
+feature_importances = model.feature_importances_
+
+# Print the weights of the symptoms involved in the prediction
+print("Feature Importances (Symptom Weights):")
+for symptom, weight in zip(symptoms, feature_importances):
+    if symptom in correlating_symptoms:
+        print(f"{symptom}: {weight}")
