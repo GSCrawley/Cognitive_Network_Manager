@@ -4,6 +4,7 @@ from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, accuracy_score
 from scipy.stats import t, ttest_ind
+import joblib
 
 df = pd.read_csv('../matrix.csv')
 
@@ -24,6 +25,8 @@ cv_scores = cross_val_score(model, X_train, y_train, cv=k)
 # Step 4: Final Model Training and Evaluation on Test Set
 model.fit(X_train, y_train)
 y_pred = model.predict(X_test)
+
+joblib.dump(model, './disease_symptom_model.pkl')
 
 # Calculate accuracy on the test set
 accuracy = accuracy_score(y_test, y_pred)

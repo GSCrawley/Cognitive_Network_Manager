@@ -13,6 +13,18 @@ from stats import do_stats_stuff
 
 app = Flask(__name__)
 
+# TODO:
+# Show disease risk factors and or comorbidities (patient risk to disease)
+# Optional update when new symptoms are made aware
+# Update symptoms disease relationships
+# Update patient symptom relationships (if they occure)
+# Update model as new information is acquired
+
+# Symptoms to possible recomentations
+
+# Finish covid work through
+# Possible treatment
+
 def check_for_server(url_lst):
     for url in url_lst:
         try:

@@ -5,6 +5,8 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, accuracy_score
 from scipy.stats import t, ttest_ind
 
+
+
 def do_stats_stuff(disease, symptoms):
     # Read the CSV file into a pandas DataFrame as input
     data = pd.read_csv('./updated_symptoms_and_disease.csv')
