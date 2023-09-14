@@ -204,6 +204,7 @@ def create_disease_vertex(new_disease, symptom_id_list):
         "name": new_disease.lower()
     }
     conn.upsertVertex("Disease", f"{disease_id}", attributes)
+    # add event
     # print("SYMPTOM: ", symptom_id_list)
 
     for symptom_id in symptom_id_list:
@@ -212,6 +213,7 @@ def create_disease_vertex(new_disease, symptom_id_list):
         print("DATA: ", symptom_id[1:-1])
         # symptom_id = data[0]['result'][0]['v_id']
         conn.upsertEdge("Symptom", f"{symptom_id[1:-1]}", "indicates", "Disease", f"{disease_id}", f"{properties}")
+        # add event
     return
 
 def confirm_diagnosis(disease_name, patient_id, care_provider_id):
@@ -224,10 +226,91 @@ def confirm_diagnosis(disease_name, patient_id, care_provider_id):
     print(disease_id)
     conn.upsertEdge("Patient", f"{patient_id}", "diagnosed_with", "Disease", f"{disease_id}", f"{properties}")
     conn.upsertEdge("Disease", f"{disease_id}", "diagnosed_by", "Care_Provider", f"{care_provider_id}", f"{properties}")
+    # add event
 
 
     print("SUCESS?")
     return
+
+def check_existing_risk_factors(risk_factors_list, disease_name):
+    vertex_type = "Risk_Factors"
+    attribute = "name"
+    risk_factor_id_list = []
+    try:
+        df = conn.getVertexDataFrame(vertex_type)
+        for name in risk_factors_list:
+            name=name.lower()
+            # if name[0] == "-":
+            #     name = name[1:]
+            if name in df['name'].values:
+                print(name)
+                result = df.loc[df[attribute] == name]
+                v_id = result['v_id'].values
+                v_id = str(v_id)[2:-2]
+                risk_factor_id_list.append(v_id)
+                print(v_id)
+            else:
+                v_id = create_risk_factor_vertex(name, disease_name)
+                risk_factor_id_list.append(v_id)
+    except:
+        for name in risk_factors_list:
+            name=name.lower()
+            create_risk_factor_vertex(name, disease_name)
+    return(risk_factor_id_list)
+
+def check_existing_risk_factors_for_patient(risk_factors_list, patient_id):
+    vertex_type = "Risk_Factors"
+    attribute = "name"
+    try:
+        df = conn.getVertexDataFrame(vertex_type)
+        for name in risk_factors_list:
+            name=name.lower()
+            # if name[0] == "-":
+            #     name = name[1:]
+            if name in df['name'].values:
+                print(name)
+                result = df.loc[df[attribute] == name]
+                v_id = result['v_id'].values
+                risk_factor_id = str(v_id)[2:-2]
+                properties = {"weight": 5}
+                conn.upsertEdge("Patient", f"{patient_id}", "exhibits", "Risk_Factors", f"{risk_factor_id}", f"{properties}")
+            else:
+                create_risk_factor_input_vertex(name, patient_id)
+                return
+                
+    except:
+        for name in risk_factors_list:
+            create_risk_factor_input_vertex(name, patient_id)
+        return
+    return('hi')
+
+def create_risk_factor_vertex(risk_factor, disease_name):
+    unique_id = uuid.uuid4()
+    risk_factor_id = f"RF{str(unique_id)[:8]}"
+    disease_name = disease_name.lower()
+    data = conn.runInstalledQuery("getDiseaseID", {"diseaseName": disease_name})
+    disease_id = data[0]['result'][0]['v_id']
+    attributes = {
+        "name": risk_factor.lower()
+    }
+    properties = {"weight": 5}
+    conn.upsertVertex("Risk_Factors", f"{risk_factor_id}", attributes)
+    # conn.upsertEdge("Patient", f"{patient_id}", "exhibits", "Risk_Factors", f"{risk_factor_id}", f"{properties}")
+    conn.upsertEdge("Risk_Factors", f"{risk_factor_id}", "reinforces", "Disease", f"{disease_id}", f"{properties}")
+    print("This is a test")
+    return(risk_factor_id)
+
+def create_risk_factor_input_vertex(risk_factor, patient_id):
+    unique_id = uuid.uuid4()
+    risk_factor_id = f"RF{str(unique_id)[:8]}"
+    attributes = {
+        "name": risk_factor.lower()
+    }
+    properties = {"weight": 5}
+    conn.upsertVertex("Risk_Factors", f"{risk_factor_id}", attributes)
+    conn.upsertEdge("Patient", f"{patient_id}", "exhibits", "Risk_Factors", f"{risk_factor_id}", f"{properties}")
+    print("This is a test")
+    return(risk_factor_id)
 
 # ADD REFERALS
 # TESTs

@@ -7,7 +7,8 @@ import argparse
 from tigerGraph import get_user_profile, check_existing_symptom, check_existing_disease,\
                        create_new_patient_vertex, user_login, create_new_provider_vertex,\
                        care_provider_login, get_provider_profile, provider_add_patient, confirm_diagnosis,\
-                       get_patient_info, get_symptom_info, creat_new_location_vertex
+                       get_patient_info, get_symptom_info, creat_new_location_vertex, check_existing_risk_factors, \
+                       check_existing_risk_factors_for_patient
 
 from stats import do_stats_stuff
 
@@ -103,6 +104,21 @@ def disease_server():
     # url_lst = [config.DURL1]
     url_lst = [config.DURL1]
     print("SURL: ",url_lst)
+    test_url = check_for_server(url_lst)
+    data = {'url': test_url}
+    return jsonify(data)
+
+@app.route('/risk_factors_server', methods=['GET'])
+def risk_factor_server():
+    user_ip = request.remote_addr
+    print("IP: ", user_ip)
+    print("WHATS GOING ON?")
+    # TODO:
+        # get ip location 
+        # connect to nearest edge cloud
+    # url_lst = [config.DURL1]
+    url_lst = [config.RFURL1]
+    print("RURL: ",url_lst)
     test_url = check_for_server(url_lst)
     data = {'url': test_url}
     return jsonify(data)
@@ -252,6 +268,38 @@ def get_symptom_names():
     data = request.get_json()
     symptoms = get_symptom_info(data['symptoms'])
     return jsonify(symptoms)
+
+@app.route('/risk_factors_disease', methods=['GET', 'POST'])
+def risk_factors_disease_relationship():
+    data = request.get_json()
+    risk_factors = data['risk_factors_list']
+    disease_name = data['disease_name']
+    risk_factor_id_list = check_existing_risk_factors(risk_factors, disease_name)
+    return jsonify(risk_factor_id_list)
+
+
+@app.route('/risk_factors', methods=['GET', 'POST'])
+def risk_factors_patient_relationship():
+    data = request.get_json()
+    risk_factors = data['risk_factors']
+    patient_id = data['patient_id']
+    print("RISK: ", risk_factors, patient_id)
+    check_existing_risk_factors_for_patient(risk_factors, patient_id)
+
+    # check for risk factor vertex duplicates
+    # create risk factors vertex
+    # create edge connections between patient, risk factors, and diseases
+    return('hi')
+
+@app.route('/risk_factors_input', methods=['GET', 'POST'])
+def risk_factors_input():
+    data = request.get_json()
+    risk_factors = data['risk_factors']
+    patient_id = data['patient_id']
+    check_existing_risk_factors_for_patient(risk_factors, patient_id)
+    return('hi')
+
+
 
 
 
