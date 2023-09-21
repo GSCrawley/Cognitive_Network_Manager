@@ -1,7 +1,7 @@
 import config
 import pyTigerGraph as tg
 from spellchecker import SpellChecker
-import uuid, json
+import uuid, json, datetime
 import pandas as pd
 
 host = config.tg_host
@@ -92,6 +92,16 @@ def get_symptom_info(id_value_data):
         result_list.append(name)
     return result_list
 
+# def get_diseases_id(diseases_name_list):
+#     output_list = []
+#     for disease_name in diseases_name_list:
+#         data = conn.runInstalledQuery("getDiseaseID", {"diseaseName": disease_name})
+#         # disease_id = data['result'][0]['v_id']
+#         # disease_id = data[0]['result'][0]['v_id']
+#         # output_list.append(data)
+#         print("OUTPUT:", data)
+#     return(output_list)
+
 def check_existing_symptom(patient_id, symptom_list_data):
     vertex_type = "Symptom"
     attribute = "name"
@@ -144,6 +154,7 @@ def check_existing_disease(disease_list_data, symptom_id_list):
     symptoms_id_list = json.loads(symptom_id_list)
     stripped_string = symptom_id_list[1:-1]
     symptom_id_list = stripped_string.split(', ')
+    disease_id_list = []
     print("TEST: ", disease_list_data, type(symptom_id_list))
     try:
         df = conn.getVertexDataFrame(vertex_type)
@@ -157,6 +168,7 @@ def check_existing_disease(disease_list_data, symptom_id_list):
                 result = df.loc[df[attribute] == name]
                 v_id = result['v_id'].values
                 v_id = str(v_id)[2:-2]
+                disease_id_list.append(v_id)
                 # Make DB query call for weight
                 properties = {"weight": 5}
                 for symptom_id in symptom_id_list:
@@ -170,11 +182,14 @@ def check_existing_disease(disease_list_data, symptom_id_list):
                     conn.upsertEdge("Symptom", f"{symptom_id[1:-1]}", "indicates", "Disease", f"{v_id}", f"{properties}")
                 print("Exsisting Disease: ", name)
             else:
-                create_disease_vertex(name, symptom_id_list)
+                new_disease_id = create_disease_vertex(name, symptom_id_list)
+                disease_id_list.append(new_disease_id)
     except Exception as e:
         for name in disease_list_data:
             print("NEW: ", name)
-            create_disease_vertex(name, symptom_id_list)
+            new_disease_id = create_disease_vertex(name, symptom_id_list)
+            disease_id_list.append(new_disease_id)
+    return(disease_id_list)
     
 
 def create_symptom_vertex(patient_id, new_symptom):
@@ -214,7 +229,7 @@ def create_disease_vertex(new_disease, symptom_id_list):
         # symptom_id = data[0]['result'][0]['v_id']
         conn.upsertEdge("Symptom", f"{symptom_id[1:-1]}", "indicates", "Disease", f"{disease_id}", f"{properties}")
         # add event
-    return
+    return(disease_id)
 
 def confirm_diagnosis(disease_name, patient_id, care_provider_id):
     properties = {"weight": 5}
@@ -230,9 +245,44 @@ def confirm_diagnosis(disease_name, patient_id, care_provider_id):
 
 
     print("SUCESS?")
-    return
+    return(disease_id)
 
-def check_existing_risk_factors(risk_factors_list, disease_name):
+def check_existing_risk_factors(risk_factors_list, disease_name, patient_id):
+    vertex_type = "Risk_Factors"
+    attribute = "name"
+    risk_factors_name_list = []
+    risk_factors_name_patient_list = []
+    try:
+        df = conn.getVertexDataFrame(vertex_type)
+        for name in risk_factors_list:
+            name=name.lower()
+            if name not in df['name'].values:
+                v_id = create_risk_factor_vertex(name, disease_name)
+    except:
+        for name in risk_factors_list:
+            name=name.lower()
+            create_risk_factor_vertex(name, disease_name)
+    # get all risk factors from disease
+    data = conn.runInstalledQuery("getAssociatedRiskFactorsDisease", {"name": disease_name.lower()})
+    data = data[0]['result']
+    for i in range(len(data)):
+        risk_factors_name_list.append(data[i]['attributes']['name'])
+    print("RF List: ", risk_factors_name_list)
+    # get all risk factors from patient
+    data = conn.runInstalledQuery("getAssociatedRiskFactorsPatient", {"patient_id": patient_id})
+    data = data[0]['result']
+    for i in range(len(data)):
+        risk_factors_name_patient_list.append(data[i]['attributes']['name'])
+    # get matching risk factors
+    matching_risk_factors = []
+    for item in risk_factors_name_patient_list:
+        if item in risk_factors_name_list:
+            matching_risk_factors.append(item)
+            risk_factors_name_list.remove(item)
+
+    return(risk_factors_name_list, matching_risk_factors)
+
+def check_existing_risk_factors_for_patient(risk_factors_list, patient_id):
     vertex_type = "Risk_Factors"
     attribute = "name"
     risk_factor_id_list = []
@@ -246,43 +296,19 @@ def check_existing_risk_factors(risk_factors_list, disease_name):
                 print(name)
                 result = df.loc[df[attribute] == name]
                 v_id = result['v_id'].values
-                v_id = str(v_id)[2:-2]
-                risk_factor_id_list.append(v_id)
-                print(v_id)
-            else:
-                v_id = create_risk_factor_vertex(name, disease_name)
-                risk_factor_id_list.append(v_id)
-    except:
-        for name in risk_factors_list:
-            name=name.lower()
-            create_risk_factor_vertex(name, disease_name)
-    return(risk_factor_id_list)
-
-def check_existing_risk_factors_for_patient(risk_factors_list, patient_id):
-    vertex_type = "Risk_Factors"
-    attribute = "name"
-    try:
-        df = conn.getVertexDataFrame(vertex_type)
-        for name in risk_factors_list:
-            name=name.lower()
-            # if name[0] == "-":
-            #     name = name[1:]
-            if name in df['name'].values:
-                print(name)
-                result = df.loc[df[attribute] == name]
-                v_id = result['v_id'].values
                 risk_factor_id = str(v_id)[2:-2]
+                risk_factor_id_list.append(risk_factor_id)
                 properties = {"weight": 5}
                 conn.upsertEdge("Patient", f"{patient_id}", "exhibits", "Risk_Factors", f"{risk_factor_id}", f"{properties}")
             else:
-                create_risk_factor_input_vertex(name, patient_id)
-                return
+                risk_id = create_risk_factor_input_vertex(name, patient_id)
+                risk_factor_id_list.append(risk_id)
                 
     except:
         for name in risk_factors_list:
-            create_risk_factor_input_vertex(name, patient_id)
-        return
-    return('hi')
+            new_id = create_risk_factor_input_vertex(name, patient_id)
+            risk_factor_id_list.append(new_id)
+    return(risk_factor_id_list)
 
 def create_risk_factor_vertex(risk_factor, disease_name):
     unique_id = uuid.uuid4()
@@ -311,6 +337,25 @@ def create_risk_factor_input_vertex(risk_factor, patient_id):
     conn.upsertEdge("Patient", f"{patient_id}", "exhibits", "Risk_Factors", f"{risk_factor_id}", f"{properties}")
     print("This is a test")
     return(risk_factor_id)
+
+def create_event(vertex1_id_list, vertex2_id_list, send_vertex, receive_vertex, send_edge_name, receive_edge_name):
+    unique_id = uuid.uuid4()
+    event_id = f"E{str(unique_id)[:8]}"
+    timestamp = datetime.datetime.now()
+    attributes = {
+        "date_time": timestamp.isoformat()
+    }
+    conn.upsertVertex("Event", f"{event_id}", attributes)
+
+    for id in vertex1_id_list:
+        properties = {"weight": 5}
+        conn.upsertEdge(f"Event", f"{event_id}", f"{send_edge_name}", f"{send_vertex}", f"{id}", f"{properties}")
+    
+    for id in vertex2_id_list:
+        properties = {"weight": 5}
+        conn.upsertEdge(f"Event", f"{event_id}", f"{receive_edge_name}", f"{receive_vertex}", f"{id}", f"{properties}")
+
+    return("hi")
 
 # ADD REFERALS
 # TESTs

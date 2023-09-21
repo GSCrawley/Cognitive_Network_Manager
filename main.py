@@ -8,7 +8,7 @@ from tigerGraph import get_user_profile, check_existing_symptom, check_existing_
                        create_new_patient_vertex, user_login, create_new_provider_vertex,\
                        care_provider_login, get_provider_profile, provider_add_patient, confirm_diagnosis,\
                        get_patient_info, get_symptom_info, creat_new_location_vertex, check_existing_risk_factors, \
-                       check_existing_risk_factors_for_patient
+                       check_existing_risk_factors_for_patient, create_event #, get_diseases_id
 
 from stats import do_stats_stuff
 
@@ -60,8 +60,8 @@ def patient_server():
     # TODO:
         # get ip location 
         # connect to nearest edge cloud
-    # url_lst = [config.PURL1, config.PURL2, config.PURL3]
-    url_lst = [config.PURL1]
+    url_lst = [config.PURL1, config.PURL2]
+    # url_lst = [config.PURL1]
     test_url = check_for_server(url_lst)
     data = {'url': test_url}
     return jsonify(data)
@@ -119,6 +119,21 @@ def risk_factor_server():
     # url_lst = [config.DURL1]
     url_lst = [config.RFURL1]
     print("RURL: ",url_lst)
+    test_url = check_for_server(url_lst)
+    data = {'url': test_url}
+    return jsonify(data)
+
+@app.route('/event_server', methods=['GET', 'POST'])
+def event_server():
+    user_ip = request.remote_addr
+    print("IP: ", user_ip)
+    print("WHATS GOING ON?")
+    # TODO:
+        # get ip location 
+        # connect to nearest edge cloud
+    # url_lst = [config.DURL1]
+    url_lst = [config.EURL1]
+    print("EURL: ",url_lst)
     test_url = check_for_server(url_lst)
     data = {'url': test_url}
     return jsonify(data)
@@ -242,6 +257,14 @@ def diseases():
     print("Result: ", result)
     return jsonify(result)
 
+# @app.route('/diseases_id', methods=['GET', 'POST'])
+# def diseases_id():
+#     data = request.get_json()
+#     diseases_list = data['diseases']
+#     diseases_id_list = get_diseases_id(diseases_list)
+#     print('ID LIST', diseases_id_list)
+#     return jsonify(diseases_id_list)
+
 @app.route('/disease_stats', methods=['GET', 'POST'])
 def disease_stats():
     data = request.get_json()
@@ -261,7 +284,7 @@ def diagnose():
     care_provider_id = data['care_provider_id']
     print(disease_name, patient_id)
     result = confirm_diagnosis(disease_name, patient_id, care_provider_id)
-    return("test")
+    return jsonify(result)
 
 @app.route('/get_symptom_names', methods=['GET', 'POST'])
 def get_symptom_names():
@@ -274,8 +297,12 @@ def risk_factors_disease_relationship():
     data = request.get_json()
     risk_factors = data['risk_factors_list']
     disease_name = data['disease_name']
-    risk_factor_id_list = check_existing_risk_factors(risk_factors, disease_name)
-    return jsonify(risk_factor_id_list)
+    patient_id = data['patient_id']
+    risk_factor_name_lists = check_existing_risk_factors(risk_factors, disease_name, patient_id)
+    risk_factors_name_list = risk_factor_name_lists[0]
+    patient_risk_factors_list = risk_factor_name_lists[1]
+    print("PRFL", patient_risk_factors_list)
+    return jsonify(risk_factors_name_list, patient_risk_factors_list)
 
 
 @app.route('/risk_factors', methods=['GET', 'POST'])
@@ -286,9 +313,6 @@ def risk_factors_patient_relationship():
     print("RISK: ", risk_factors, patient_id)
     check_existing_risk_factors_for_patient(risk_factors, patient_id)
 
-    # check for risk factor vertex duplicates
-    # create risk factors vertex
-    # create edge connections between patient, risk factors, and diseases
     return('hi')
 
 @app.route('/risk_factors_input', methods=['GET', 'POST'])
@@ -296,7 +320,21 @@ def risk_factors_input():
     data = request.get_json()
     risk_factors = data['risk_factors']
     patient_id = data['patient_id']
-    check_existing_risk_factors_for_patient(risk_factors, patient_id)
+    risk_factors_id_list = check_existing_risk_factors_for_patient(risk_factors, patient_id)
+    return jsonify(risk_factors_id_list)
+
+
+@app.route('/add_event', methods=['GET', 'POST'])
+def add_event():
+    data = request.get_json()
+    vertex1_id_list = data['vertex1_id_list']
+    vertex2_id_list = data['vertex2_id_list']
+    send_vertex = data['send_vertex']
+    receive_vertex = data['receive_vertex']
+    send_edge_name = data['send_edge_name']
+    receive_edge_name = data['receive_edge_name']
+    # print("THIS:",vertex1_id_list, vertex2_id_list)
+    create_event(vertex1_id_list, vertex2_id_list, send_vertex, receive_vertex, send_edge_name, receive_edge_name)
     return('hi')
 
 
