@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, request, session
 import requests, json
 import argparse
-from tigerGraph import get_user_profile, check_existing_symptom, check_existing_disease,\
+from tigerGraph.tigerGraph import get_user_profile, check_existing_symptom, check_existing_disease,\
                        create_new_patient_vertex, user_login, create_new_provider_vertex,\
                        care_provider_login, get_provider_profile, provider_add_patient, confirm_diagnosis,\
                        get_patient_info, get_symptom_info, creat_new_location_vertex, check_existing_risk_factors, \
@@ -152,7 +152,7 @@ def register():
 
     new_patient_id = create_new_patient_vertex(first_name, last_name, username, password, email, DOB)
     print(new_patient_id)
-    location_data(new_patient_id, location)
+    # location_data(new_patient_id, location)
     return jsonify(new_patient_id)
 
 def location_data(user_id, location):
@@ -168,6 +168,7 @@ def provider_register():
     email = data['email']
     password = data['password']
     specialty = data['specialty']
+    location = data['location']
 
     new_provider = create_new_provider_vertex(name, email, password, specialty)
     return jsonify(new_provider)
@@ -301,8 +302,10 @@ def risk_factors_disease_relationship():
     risk_factor_name_lists = check_existing_risk_factors(risk_factors, disease_name, patient_id)
     risk_factors_name_list = risk_factor_name_lists[0]
     patient_risk_factors_list = risk_factor_name_lists[1]
+    disease_id = risk_factor_name_lists[2]
+    risk_factor_id_list = risk_factor_name_lists[3]
     print("PRFL", patient_risk_factors_list)
-    return jsonify(risk_factors_name_list, patient_risk_factors_list)
+    return jsonify(risk_factors_name_list, patient_risk_factors_list, disease_id, risk_factor_id_list)
 
 
 @app.route('/risk_factors', methods=['GET', 'POST'])
@@ -311,9 +314,9 @@ def risk_factors_patient_relationship():
     risk_factors = data['risk_factors']
     patient_id = data['patient_id']
     print("RISK: ", risk_factors, patient_id)
-    check_existing_risk_factors_for_patient(risk_factors, patient_id)
+    risk_factors_id_list = check_existing_risk_factors_for_patient(risk_factors, patient_id)
 
-    return('hi')
+    return jsonify(risk_factors_id_list)
 
 @app.route('/risk_factors_input', methods=['GET', 'POST'])
 def risk_factors_input():
@@ -326,6 +329,17 @@ def risk_factors_input():
 
 @app.route('/add_event', methods=['GET', 'POST'])
 def add_event():
+
+    # auth_header = request.headers.get("Authorization")
+    
+    # if auth_header:
+    #     # Extract the token from the header (assuming "Bearer" prefix)
+    #     token = auth_header.split(" ")[1] if auth_header.startswith("Bearer ") else auth_header
+    #     # print(f"JWT Token: {token}")
+    # else:
+    #     token = 0
+    #     print("Authorization header not found")
+
     data = request.get_json()
     vertex1_id_list = data['vertex1_id_list']
     vertex2_id_list = data['vertex2_id_list']
@@ -333,8 +347,9 @@ def add_event():
     receive_vertex = data['receive_vertex']
     send_edge_name = data['send_edge_name']
     receive_edge_name = data['receive_edge_name']
+    action = data['action']
     # print("THIS:",vertex1_id_list, vertex2_id_list)
-    create_event(vertex1_id_list, vertex2_id_list, send_vertex, receive_vertex, send_edge_name, receive_edge_name)
+    create_event(vertex1_id_list, vertex2_id_list, send_vertex, receive_vertex, send_edge_name, receive_edge_name, action)
     return('hi')
 
 

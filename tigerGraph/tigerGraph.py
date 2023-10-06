@@ -3,6 +3,7 @@ import pyTigerGraph as tg
 from spellchecker import SpellChecker
 import uuid, json, datetime
 import pandas as pd
+from tigerGraph.eventGraph import event_snapshot
 
 host = config.tg_host
 graphname = config.tg_graph_name
@@ -64,7 +65,7 @@ def care_provider_login(email, password):
 
 def get_user_profile(id_value):
     result = conn.runInstalledQuery("getProfile", {"id_value": id_value})
-    # print(result)
+    # print("RESULT: ", result)
     return result
 
 def get_provider_profile(id_value):
@@ -252,16 +253,26 @@ def check_existing_risk_factors(risk_factors_list, disease_name, patient_id):
     attribute = "name"
     risk_factors_name_list = []
     risk_factors_name_patient_list = []
+    disease_name = disease_name.lower()
+    data = conn.runInstalledQuery("getDiseaseID", {"diseaseName": disease_name})
+    disease_id = data[0]['result'][0]['v_id']
+    risk_factors_id_list = []
     try:
         df = conn.getVertexDataFrame(vertex_type)
         for name in risk_factors_list:
             name=name.lower()
             if name not in df['name'].values:
                 v_id = create_risk_factor_vertex(name, disease_name)
+                risk_factors_id_list.append(v_id)
+            elif name in df['name'].values:
+                result = df.loc[df[attribute] == name]
+                v_id = result['v_id'].values
+                v_id = str(v_id)[2:-2]
+                risk_factors_id_list.append(v_id)
     except:
         for name in risk_factors_list:
-            name=name.lower()
-            create_risk_factor_vertex(name, disease_name)
+            v_id = create_risk_factor_vertex(name, disease_name)
+            risk_factors_id_list.append(v_id)
     # get all risk factors from disease
     data = conn.runInstalledQuery("getAssociatedRiskFactorsDisease", {"name": disease_name.lower()})
     data = data[0]['result']
@@ -280,7 +291,7 @@ def check_existing_risk_factors(risk_factors_list, disease_name, patient_id):
             matching_risk_factors.append(item)
             risk_factors_name_list.remove(item)
 
-    return(risk_factors_name_list, matching_risk_factors)
+    return(risk_factors_name_list, matching_risk_factors, disease_id, risk_factors_id_list)
 
 def check_existing_risk_factors_for_patient(risk_factors_list, patient_id):
     vertex_type = "Risk_Factors"
@@ -338,24 +349,63 @@ def create_risk_factor_input_vertex(risk_factor, patient_id):
     print("This is a test")
     return(risk_factor_id)
 
-def create_event(vertex1_id_list, vertex2_id_list, send_vertex, receive_vertex, send_edge_name, receive_edge_name):
+def create_event(vertex1_id_list, vertex2_id_list, send_vertex, receive_vertex, send_edge_name, receive_edge_name, action):
     unique_id = uuid.uuid4()
     event_id = f"E{str(unique_id)[:8]}"
     timestamp = datetime.datetime.now()
     attributes = {
-        "date_time": timestamp.isoformat()
+        "date_time": timestamp.isoformat(),
+        "sensor": vertex1_id_list,
+        "actuator": vertex2_id_list,
+        "action": action
     }
     conn.upsertVertex("Event", f"{event_id}", attributes)
 
+    # Use send/receive vertex to upsert event data
+    # Get event data from vertex
+
     for id in vertex1_id_list:
+        if id == "genesis":
+            break
         properties = {"weight": 5}
         conn.upsertEdge(f"Event", f"{event_id}", f"{send_edge_name}", f"{send_vertex}", f"{id}", f"{properties}")
+        add_event_to_vertex(id, timestamp, event_id, send_vertex)
+
     
     for id in vertex2_id_list:
         properties = {"weight": 5}
         conn.upsertEdge(f"Event", f"{event_id}", f"{receive_edge_name}", f"{receive_vertex}", f"{id}", f"{properties}")
+        add_event_to_vertex(id, timestamp, event_id, receive_vertex)
+    
+    event_snapshot(event_id, timestamp, action, vertex1_id_list, vertex2_id_list, send_vertex, receive_vertex, send_edge_name, receive_edge_name)
 
     return("hi")
+
+def add_event_to_vertex(id, timestamp, event_id, vertex):
+    data = conn.getVerticesById(vertex, id)
+
+    data = data[0]['attributes']['event']
+    # print("QUERY: ", data)
+    keylist = []
+    valuelist = []
+    for key, value in data.items():
+        keylist.append(key)
+        valuelist.append(value)
+    
+    keylist.append(timestamp.isoformat())
+    valuelist.append(event_id)
+    # print("KEYS", keylist)
+    # print("VALUES", valuelist)
+
+    # get event history from vertex
+    event_attributes = {
+        "event": {
+            "keylist": keylist,
+            "valuelist": valuelist,
+        }
+    }
+
+    conn.upsertVertex(f"{vertex}", f"{id}", event_attributes)
 
 # ADD REFERALS
 # TESTs
