@@ -2,13 +2,13 @@ import os
 import config
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request, session
-import requests, json
+import requests, json, threading
 import argparse
 from tigerGraph.tigerGraph import get_user_profile, check_existing_symptom, check_existing_disease,\
                        create_new_patient_vertex, user_login, create_new_provider_vertex,\
                        care_provider_login, get_provider_profile, provider_add_patient, confirm_diagnosis,\
                        get_patient_info, get_symptom_info, creat_new_location_vertex, check_existing_risk_factors, \
-                       check_existing_risk_factors_for_patient, create_event #, get_diseases_id
+                       check_existing_risk_factors_for_patient, create_event, relate_key_symptoms #,get_diseases_id
 
 from stats import do_stats_stuff
 
@@ -326,20 +326,17 @@ def risk_factors_input():
     risk_factors_id_list = check_existing_risk_factors_for_patient(risk_factors, patient_id)
     return jsonify(risk_factors_id_list)
 
+@app.route('/key_symptom_relationships', methods=['GET', 'POST'])
+def key_symptom_relationships():
+    data = request.get_json()
+    symptoms = data['symptoms']
+    disease = data['disease']
+    relationship = relate_key_symptoms(symptoms, disease)
+    return jsonify(relationship)
+
 
 @app.route('/add_event', methods=['GET', 'POST'])
 def add_event():
-
-    # auth_header = request.headers.get("Authorization")
-    
-    # if auth_header:
-    #     # Extract the token from the header (assuming "Bearer" prefix)
-    #     token = auth_header.split(" ")[1] if auth_header.startswith("Bearer ") else auth_header
-    #     # print(f"JWT Token: {token}")
-    # else:
-    #     token = 0
-    #     print("Authorization header not found")
-
     data = request.get_json()
     vertex1_id_list = data['vertex1_id_list']
     vertex2_id_list = data['vertex2_id_list']
@@ -349,7 +346,9 @@ def add_event():
     receive_edge_name = data['receive_edge_name']
     action = data['action']
     # print("THIS:",vertex1_id_list, vertex2_id_list)
-    create_event(vertex1_id_list, vertex2_id_list, send_vertex, receive_vertex, send_edge_name, receive_edge_name, action)
+    add_event_thread = threading.Thread(target=create_event, args=(vertex1_id_list, vertex2_id_list, send_vertex, receive_vertex, send_edge_name, receive_edge_name, action))
+    add_event_thread.start()
+    # create_event(vertex1_id_list, vertex2_id_list, send_vertex, receive_vertex, send_edge_name, receive_edge_name, action)
     return('hi')
 
 

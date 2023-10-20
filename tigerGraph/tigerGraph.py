@@ -1,7 +1,7 @@
 import config
 import pyTigerGraph as tg
 from spellchecker import SpellChecker
-import uuid, json, datetime
+import uuid, json, datetime, threading
 import pandas as pd
 from tigerGraph.eventGraph import event_snapshot
 
@@ -377,7 +377,9 @@ def create_event(vertex1_id_list, vertex2_id_list, send_vertex, receive_vertex, 
         conn.upsertEdge(f"Event", f"{event_id}", f"{receive_edge_name}", f"{receive_vertex}", f"{id}", f"{properties}")
         add_event_to_vertex(id, timestamp, event_id, receive_vertex)
     
-    event_snapshot(event_id, timestamp, action, vertex1_id_list, vertex2_id_list, send_vertex, receive_vertex, send_edge_name, receive_edge_name)
+    # event_snapshot(event_id, timestamp, action, vertex1_id_list, vertex2_id_list, send_vertex, receive_vertex, send_edge_name, receive_edge_name)
+    event_thread = threading.Thread(target=event_snapshot, args=(event_id, timestamp, action, vertex1_id_list, vertex2_id_list, send_vertex, receive_vertex, send_edge_name, receive_edge_name))
+    event_thread.start()
 
     return("hi")
 
@@ -407,8 +409,41 @@ def add_event_to_vertex(id, timestamp, event_id, vertex):
 
     conn.upsertVertex(f"{vertex}", f"{id}", event_attributes)
 
-# ADD REFERALS
-# TESTs
-# Labs
-# Diagnosis
-# Treatment
+def relate_key_symptoms(symptoms, disease):
+    vertex_symptom = "Symptom"
+    vertex_disease = "Disease"
+    disease_id = ""
+    symptoms_id_list = []
+    df = conn.getVertexDataFrame(vertex_disease)
+    disease_name = disease.lower()
+    if disease_name in df['name'].values:
+        result = df.loc[df['name'] == disease_name]
+        v_id = result['v_id'].values
+        disease_id = str(v_id)[2:-2]
+    try:
+        df = conn.getVertexDataFrame(vertex_symptom)
+        print("KEY SYMPTOMS", symptoms, disease, disease_id)
+        for symptom in symptoms:
+            name=symptom.lower()
+            if name in df['name'].values:
+                print("EXSISTING SYMPTOM", name)
+                result = df.loc[df['name'] == name]
+                v_id = result['v_id'].values
+                symptom_id = str(v_id)[2:-2]
+                properties = {"weight": 5}
+                conn.upsertEdge("Symptom", f"{symptom_id}", "indicates", "Disease", f"{disease_id}", f"{properties}")
+                symptoms_id_list.append(symptom_id)
+            else:
+                unique_id = uuid.uuid4()
+                symptom_id = f"S{str(unique_id)[:8]}"
+                properties = {"weight": 5}
+                attributes = {
+                    "name": symptom.lower()
+                }
+                conn.upsertVertex("Symptom", f"{symptom_id}", attributes)
+                conn.upsertEdge("Symptom", f"{symptom_id}", "indicates", "Disease", f"{disease_id}", f"{properties}")
+                symptoms_id_list.append(symptom_id)
+        return(disease_id, symptoms_id_list)
+    except:
+        print("err")
+        return("err")

@@ -1,7 +1,7 @@
 import config
 import pyTigerGraph as tg
 from spellchecker import SpellChecker
-import uuid, json, datetime
+import uuid, json, datetime, threading
 import pandas as pd
 
 host = config.tg_host
@@ -32,7 +32,6 @@ def event_snapshot(event_id, timestamp, action, vertex1_id_list, vertex2_id_list
     else:
         t = data[0]['t'][0]['attributes']['t.T']
         t += 1
-    print("DATA", data)
     attributes = {
         "date_time": timestamp.isoformat(),
         "sensor": vertex1_id_list,
@@ -46,24 +45,24 @@ def event_snapshot(event_id, timestamp, action, vertex1_id_list, vertex2_id_list
         if id == "genesis":
             break
         new_vertex_id = update_attributes(event_id, send_vertex, id, send_edge_name)
-        # properties = {"weight": 5}
-        # conn2.upsertEdge(f"Event", f"{event_id}", f"{send_edge_name}", f"{send_vertex}", f"{id}", f"{properties}")
         # get list of vertex events, return most recent event.
         history = conn1.runInstalledQuery("getEventHistory", {"vertexType": send_vertex, "vertexId": id})
         history = history[0]['result'][0]['attributes']['result.event']
-        connect_history(history, new_vertex_id, send_vertex)
+        connect_history(history, new_vertex_id, send_vertex, event_id)
 
 
     for id in vertex2_id_list:
         new_vertex_id = update_attributes(event_id, receive_vertex, id, receive_edge_name)
-        # properties = {"weight": 5}
-        # conn2.upsertEdge(f"Event", f"{event_id}", f"{receive_edge_name}", f"{receive_vertex}", f"{id}", f"{properties}")
         if vertex1_id_list[0] == "genesis":
             break
         history = conn1.runInstalledQuery("getEventHistory", {"vertexType": receive_vertex, "vertexId": id})
-        # print("HISTORY", vertex1_id_list[0])
         history = history[0]['result'][0]['attributes']['result.event']
-        connect_history(history, new_vertex_id, receive_vertex)
+        connect_history(history, new_vertex_id, receive_vertex, event_id)
+
+    # # GET event edges
+    parent_event_thread = threading.Thread(target=connect_parent, args=(event_id,))
+    # connect_parent(event_id)
+    parent_event_thread.start()
     return()
 
 def update_attributes(event_id, vertex, id, edge):
@@ -98,30 +97,18 @@ def update_attributes(event_id, vertex, id, edge):
     conn2.upsertEdge(f"Event", f"{event_id}", f"{edge}", f"{vertex}", f"{vertex_id}", f"{properties}")
     return(vertex_id)
 
-def connect_history(history, new_vertex_id, vertex):
+def connect_history(history, new_vertex_id, vertex, event_id):
     items = [(int(time), value) for time, value in history.items()]
     # Sort the list of tuples by timestamp
     sorted_items = sorted(items, key=lambda x: x[0])
     if len(sorted_items) > 1:
         latest_event = sorted_items[-2][1]
         data = conn2.getEdges("Event", latest_event)
-        print("LATEST", data)
         connect_self(data, vertex, new_vertex_id)
-    else:
-        # NOT THE WAY???
-        # current_event = sorted_items[0][1]
-        # data = conn2.getEdges("Event", current_event)
-        # print("CURRENT EVENT", current_event)
-        # connect_parent(data, vertex, new_vertex_id)
-        return()
+
     return()
     
-
 def connect_self(data, vertex, new_vertex_id):
-    print("TEST", data[0]["to_type"])
-    print("SEND", vertex)
-    # extracted_data = {}
-    # conn2.getVerticesById(item.key, id)
     for item in data:
         if vertex == "Care_Provider":
             edge = "care_provider_self"
@@ -142,11 +129,113 @@ def connect_self(data, vertex, new_vertex_id):
             if prev == curr:
                 properties = {"weight": 5}
                 conn2.upsertEdge(f"{vertex}", f"{item['to_id']}", f"{edge}", f"{vertex}", f"{new_vertex_id}", f"{properties}")
-            print("PREVIOUS", prev)
-            print("CURRENT", curr)
 
-def connect_parent(data, vertex, new_vertex_id):
-    print("CURRENT EVENT DATA", data)
+def connect_parent(event_id):
+    # GET event edges
+    event_edges = conn2.getEdges("Event", event_id)
+    event_data = conn2.getVerticesById("Event", event_id)
+    if event_data[0]['attributes']['action'] == "Appointment":
+        e_edges = conn2.getEdges("Care_Provider", event_edges[1]['to_id'])
+        parent_id = e_edges[1]['to_id']
+        child_id = event_edges[0]['to_id']
+        properties = {"weight": 5}
+        conn2.upsertEdge(f"Care_Provider", f"{parent_id}", f"treating", f"Patient", f"{child_id}", f"{properties}")
 
+    elif event_data[0]['attributes']['action'] == "Symptom Input":
+        parent_id = ""
+        child_ids = []
+        for vertex in event_edges:
+            if vertex['to_type'] == "Patient":
+                e_edges = conn2.getEdges("Patient", vertex['to_id'])
+                parent_id = e_edges[1]['to_id']
+            elif vertex['to_type'] == "Symptom":
+                child_ids.append(vertex['to_id'])
+        for child in child_ids:
+            properties = {"weight": 5}
+            conn2.upsertEdge("Patient", f"{parent_id}", "is_experiencing", "Symptom", f"{child}", f"{properties}")
+    
+    elif event_data[0]['attributes']['action'] == "Disease Hypothesis":
+        parent_ids = []
+        child_ids = []
+        for vertex in event_edges:
+            if vertex['to_type'] == "Symptom":
+                e_edges = conn2.getEdges("Symptom", vertex['to_id'])
+                parent_ids.append(e_edges[1]['to_id'])
+            elif vertex['to_type'] == "Disease":
+                child_ids.append(vertex['to_id'])
+        for parent_id in parent_ids:
+            for child_id in child_ids:
+                properties = {"weight": 5}
+                conn2.upsertEdge("Symptom", f"{parent_id}", "indicates", "Disease", f"{child_id}", f"{properties}")
+
+    elif event_data[0]['attributes']['action'] == "Diagnosis Patient":
+        e_edges = conn2.getEdges("Disease", event_edges[1]['to_id'])
+        parent_id = e_edges[1]['to_id']
+        child_id = event_edges[0]['to_id']
+        properties = {"weight": 5}
+        conn2.upsertEdge("Disease", f"{parent_id}", "diagnosed_with", "Patient", f"{child_id}", f"{properties}")
+
+    elif event_data[0]['attributes']['action'] == "Diagnosis Care Provider":
+        e_edges = conn2.getEdges("Disease", event_edges[0]['to_id'])
+        parent_id = e_edges[1]['to_id']
+        child_id = event_edges[1]['to_id']
+        properties = {"weight": 5}
+        conn2.upsertEdge("Disease", f"{parent_id}", "diagnosed_by", "Care_Provider", f"{child_id}", f"{properties}")
+
+    elif event_data[0]['attributes']['action'] == "Risk Factors Patient":
+        e_edges = conn2.getEdges("Patient", event_edges[0]['to_id'])
+        parent_id = e_edges[1]['to_id']
+        child_ids = []
+        for vertex in event_edges:
+            if vertex['to_type'] == "Risk_Factors":
+                child_ids.append(vertex['to_id'])
+        properties = {"weight": 5}
+        for child_id in child_ids:
+            conn2.upsertEdge("Patient", f"{parent_id}", "exhibits", "Risk_Factors", f"{child_id}", f"{properties}")
+        # print("EVENT INFO:", child_ids)
+
+    elif event_data[0]['attributes']['action'] == "Risk Factors Disease":
+        parent_id = ""
+        child_ids = []
+        for vertex in event_edges:
+            if vertex['to_type'] == "Disease":
+                e_edges = conn2.getEdges("Disease", vertex['to_id'])
+                parent_id = e_edges[1]['to_id']
+            elif vertex['to_type'] == "Risk_Factors":
+                child_ids.append(vertex['to_id'])
+        # print("VERTEX INFO", e_edges)
+        properties = {"weight": 5}
+        for child_id in child_ids:
+            conn2.upsertEdge("Disease", f"{parent_id}", "reverse_reinforces", "Risk_Factors", f"{child_id}", f"{properties}")
+        # print("EVENT INFO:", event_edges)
+
+    elif event_data[0]['attributes']['action'] == "Key Symptoms":
+        parent_id = ""
+        child_ids = []
+        for vertex in event_edges:
+            if vertex['to_type'] == "Disease":
+                e_edges = conn2.getEdges("Disease", vertex['to_id'])
+                parent_id = e_edges[1]['to_id']
+            elif vertex['to_type'] == "Symptom":
+                child_ids.append(vertex['to_id'])
+        properties = {"weight": 5}
+        for child_id in child_ids:
+            conn2.upsertEdge("Disease", f"{parent_id}", "reverse_indicates", "Symptom", f"{child_id}", f"{properties}")
+        print("INFO:", parent_id, child_ids)
+
+
+        # Build case of rare disease, common disease, uncommon disease with similar symptoms
+        # SINGLE DISEASE, first patient, covid
+        # MULTIPLE DISEASE, second patient, multiple melinoma + skin cancer + another similar disease
+        # Build case study for patient exsibiting similar symptoms
+        # P2 experiancing symptom [a,b] == D1
+        # P2 ex sympton [c, d] == D2 -> getting worse
+        # P2 ex symp [a,b,c,d] == multiple melinoma, and/or D1, and/or D2
+        # go to GP give symps -> common D -> D1 specialist -> new symp -> rare D
+        # GOAL: mini time loss, possibility of all diseases and making appropriate treatment desision.
+        # REDUCE KNOWLEDGE GAP BETWEEN ACTORS global knowledge pool shared in real time with actors
+        # THis model provides a wider visibility into multiple diseases at any instance rather than sequencilly
+        # Reduce time, increase knowledge to actors. Actors have the some knowledge therefore the some desicion
+        # Lack of time and knowlege generate stress in professionals.
 
 
