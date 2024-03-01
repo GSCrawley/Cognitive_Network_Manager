@@ -26,7 +26,6 @@ def create_new_patient_vertex(first_name, last_name, username, password, email, 
         "email": email,
         "DOB": DOB,
     }
-    print(attributes)
     conn.upsertVertex("Patient", patient_id, attributes)
     return(patient_id)
 
@@ -40,7 +39,6 @@ def create_new_provider_vertex(name, email, password, specialty):
         "password": password,
         "specialty": specialty,
     }
-    print(attributes)
     conn.upsertVertex("Care_Provider", care_provider_id, attributes)
     return(care_provider_id)
 
@@ -56,7 +54,6 @@ def creat_new_location_vertex(user_id, location):
 
 def user_login(email, password):
     result = conn.runInstalledQuery("authenticateUser", {"email": email, "password": password})
-    # print('RESULT: ', result[0]['User'])
     return result[0]
 
 def care_provider_login(email, password):
@@ -65,12 +62,29 @@ def care_provider_login(email, password):
 
 def get_user_profile(id_value):
     result = conn.runInstalledQuery("getProfile", {"id_value": id_value})
-    # print("RESULT: ", result)
     return result
+
+def get_patient_graph_visual(id_value):
+    root = conn.getEdges("Patient", f"{id_value}")
+    edge_list = []
+    edge_dict = {}
+    for edge in root:
+        edge_list.append(edge['to_id'])
+    for edge in edge_list:
+        if edge[0] == 'S':
+            branch = conn.getEdges("Symptom", f"{edge}")
+            for leaf in branch:
+                if leaf['to_id'][0] == "D":
+                    leaf_from_id = leaf['from_id']
+                    if leaf_from_id in edge_dict:
+                        edge_dict[leaf_from_id].append(leaf['to_id'])
+                    else:
+                        edge_dict[leaf_from_id] = [leaf['to_id']]
+
+    return edge_list, edge_dict
 
 def get_provider_profile(id_value):
     result = conn.runInstalledQuery("getProviderProfile", {"id_value": id_value})
-    print(result)
     return result
 
 def provider_add_patient(patient_id, provider_id):
@@ -87,7 +101,6 @@ def get_symptom_info(id_value_data):
     id_value_list = json.loads(id_value_data)
     result_list = []
     for id_value in id_value_list:
-        print("ID_VALUE:", id_value)
         result = conn.runInstalledQuery("getSymptomInfo", {"id_value": id_value})
         name = result[0]['Symp'][0]['attributes']['Symp.name']
         result_list.append(name)
@@ -114,36 +127,27 @@ def check_existing_symptom(patient_id, symptom_list_data):
         symptom_check = symptom.split(" ")
         checked_words = []
         for word in symptom_check:
-            # print("WORD: ", word)
             checked_word = spell.correction(word)
             checked_words.append(checked_word)
         result = " ".join(checked_words)
         result_list.append(result.lower())
     # result_list = symptom_list_data
-    print('RESULT: ', result_list)
     try:
         df = conn.getVertexDataFrame(vertex_type)
         for name in result_list:
             if name[-1] == ".":
                 name = name[:-1]
             if name in df['name'].values:
-                # print(df['name'].values)
-                print("EXSISTING SYMPTOM: ", name)
                 result = df.loc[df[attribute] == name]
                 v_id = result['v_id'].values
                 v_id = str(v_id)[2:-2]
-                # print(df.loc[df[attribute]==name])
-                # edge.s.append(v_id)
                 id_list.append(v_id)
                 properties = {"weight": 5}
-                print("test", v_id)
                 conn.upsertEdge("Patient", f"{patient_id}", "is_experiencing", "Symptom", f"{v_id}", f"{properties}")
             else:
                 v_id = create_symptom_vertex(patient_id, name)
-                print("v_id: ", v_id)
                 id_list.append(v_id)
     except Exception as e:
-        print("test")
         for name in result_list:
             v_id = create_symptom_vertex(patient_id, name)
             id_list.append(v_id)
@@ -156,16 +160,13 @@ def check_existing_disease(disease_list_data, symptom_id_list):
     stripped_string = symptom_id_list[1:-1]
     symptom_id_list = stripped_string.split(', ')
     disease_id_list = []
-    print("TEST: ", disease_list_data, type(symptom_id_list))
     try:
         df = conn.getVertexDataFrame(vertex_type)
-        # print("DF: ", df)
         for name in disease_list_data:
             name=name.lower()
             if name[-1] == ".":
                 name = name[:-1]
             if name in df['name'].values:
-                print("NAME: ", name)
                 result = df.loc[df[attribute] == name]
                 v_id = result['v_id'].values
                 v_id = str(v_id)[2:-2]
@@ -173,21 +174,12 @@ def check_existing_disease(disease_list_data, symptom_id_list):
                 # Make DB query call for weight
                 properties = {"weight": 5}
                 for symptom_id in symptom_id_list:
-                    # symptom_name = name.lower()
-                    # print("SYmptom Name: ", symptom_name)
-                    # data = conn.runInstalledQuery("getSymptomID", {"symptomName": symptom_name})
-                    # print("DATA: ", data)
-                    # symptom_id = data[0]['result'][0]['v_id']
-                    print("Symptom ID: ", symptom_id)
-                    print("Disease ID: ", v_id)
                     conn.upsertEdge("Symptom", f"{symptom_id[1:-1]}", "indicates", "Disease", f"{v_id}", f"{properties}")
-                print("Exsisting Disease: ", name)
             else:
                 new_disease_id = create_disease_vertex(name, symptom_id_list)
                 disease_id_list.append(new_disease_id)
     except Exception as e:
         for name in disease_list_data:
-            print("NEW: ", name)
             new_disease_id = create_disease_vertex(name, symptom_id_list)
             disease_id_list.append(new_disease_id)
     return(disease_id_list)
@@ -199,13 +191,11 @@ def create_symptom_vertex(patient_id, new_symptom):
     # edge.s.append(symptom_id)
     properties = {"weight": 5}
     # Lowercase standerdize names
-    print("NEW SYMPTOM:", new_symptom)
     attributes = {
         "name": new_symptom.lower()
     }
     conn.upsertVertex("Symptom", f"{symptom_id}", attributes)
     conn.upsertEdge("Patient", f"{patient_id}", "is_experiencing", "Symptom", f"{symptom_id}", f"{properties}")
-    # print("HELLO!!!", new_symptom, symptom_id)
     return(symptom_id)
 
 def create_disease_vertex(new_disease, symptom_id_list):
@@ -221,12 +211,9 @@ def create_disease_vertex(new_disease, symptom_id_list):
     }
     conn.upsertVertex("Disease", f"{disease_id}", attributes)
     # add event
-    # print("SYMPTOM: ", symptom_id_list)
-
     for symptom_id in symptom_id_list:
         properties = {"weight": 5}
         # data = conn.runInstalledQuery("getSymptomID", {"symptomName": symptom_name})
-        print("DATA: ", symptom_id[1:-1])
         # symptom_id = data[0]['result'][0]['v_id']
         conn.upsertEdge("Symptom", f"{symptom_id[1:-1]}", "indicates", "Disease", f"{disease_id}", f"{properties}")
         # add event
@@ -235,17 +222,11 @@ def create_disease_vertex(new_disease, symptom_id_list):
 def confirm_diagnosis(disease_name, patient_id, care_provider_id):
     properties = {"weight": 5}
     disease_name = disease_name.lower()
-    print("DISEASE NAME: ", disease_name)
     data = conn.runInstalledQuery("getDiseaseID", {"diseaseName": disease_name})
     disease_id = data[0]['result'][0]['v_id']
     properties = {"weight": 5}
-    print(disease_id)
     conn.upsertEdge("Patient", f"{patient_id}", "diagnosed_with", "Disease", f"{disease_id}", f"{properties}")
     conn.upsertEdge("Disease", f"{disease_id}", "diagnosed_by", "Care_Provider", f"{care_provider_id}", f"{properties}")
-    # add event
-
-
-    print("SUCESS?")
     return(disease_id)
 
 def check_existing_risk_factors(risk_factors_list, disease_name, patient_id):
@@ -278,7 +259,6 @@ def check_existing_risk_factors(risk_factors_list, disease_name, patient_id):
     data = data[0]['result']
     for i in range(len(data)):
         risk_factors_name_list.append(data[i]['attributes']['name'])
-    print("RF List: ", risk_factors_name_list)
     # get all risk factors from patient
     data = conn.runInstalledQuery("getAssociatedRiskFactorsPatient", {"patient_id": patient_id})
     data = data[0]['result']
@@ -304,7 +284,6 @@ def check_existing_risk_factors_for_patient(risk_factors_list, patient_id):
             # if name[0] == "-":
             #     name = name[1:]
             if name in df['name'].values:
-                print(name)
                 result = df.loc[df[attribute] == name]
                 v_id = result['v_id'].values
                 risk_factor_id = str(v_id)[2:-2]
@@ -334,7 +313,6 @@ def create_risk_factor_vertex(risk_factor, disease_name):
     conn.upsertVertex("Risk_Factors", f"{risk_factor_id}", attributes)
     # conn.upsertEdge("Patient", f"{patient_id}", "exhibits", "Risk_Factors", f"{risk_factor_id}", f"{properties}")
     conn.upsertEdge("Risk_Factors", f"{risk_factor_id}", "reinforces", "Disease", f"{disease_id}", f"{properties}")
-    print("This is a test")
     return(risk_factor_id)
 
 def create_risk_factor_input_vertex(risk_factor, patient_id):
@@ -346,7 +324,6 @@ def create_risk_factor_input_vertex(risk_factor, patient_id):
     properties = {"weight": 5}
     conn.upsertVertex("Risk_Factors", f"{risk_factor_id}", attributes)
     conn.upsertEdge("Patient", f"{patient_id}", "exhibits", "Risk_Factors", f"{risk_factor_id}", f"{properties}")
-    print("This is a test")
     return(risk_factor_id)
 
 def create_event(vertex1_id_list, vertex2_id_list, send_vertex, receive_vertex, send_edge_name, receive_edge_name, action):
@@ -378,6 +355,8 @@ def create_event(vertex1_id_list, vertex2_id_list, send_vertex, receive_vertex, 
         add_event_to_vertex(id, timestamp, event_id, receive_vertex)
     
     # event_snapshot(event_id, timestamp, action, vertex1_id_list, vertex2_id_list, send_vertex, receive_vertex, send_edge_name, receive_edge_name)
+
+    """EVENT GRAPH IS TURNED OFF"""
     event_thread = threading.Thread(target=event_snapshot, args=(event_id, timestamp, action, vertex1_id_list, vertex2_id_list, send_vertex, receive_vertex, send_edge_name, receive_edge_name))
     event_thread.start()
 
@@ -386,25 +365,23 @@ def create_event(vertex1_id_list, vertex2_id_list, send_vertex, receive_vertex, 
 def add_event_to_vertex(id, timestamp, event_id, vertex):
     data = conn.getVerticesById(vertex, id)
 
-    data = data[0]['attributes']['event']
-    # print("QUERY: ", data)
-    keylist = []
-    valuelist = []
-    for key, value in data.items():
-        keylist.append(key)
-        valuelist.append(value)
+    event_data = data[0]['attributes']['event']
+    time_data = data[0]['attributes']['time']
+    eventlist = []
+    timelist = []
+
+    for event in event_data:
+        eventlist.append(event)
+    for time in time_data:
+        timelist.append(time)
     
-    keylist.append(timestamp.isoformat())
-    valuelist.append(event_id)
-    # print("KEYS", keylist)
-    # print("VALUES", valuelist)
+    eventlist.append(event_id)
+    timelist.append(timestamp.isoformat())
 
     # get event history from vertex
     event_attributes = {
-        "event": {
-            "keylist": keylist,
-            "valuelist": valuelist,
-        }
+        "event": eventlist,
+        "time": timelist
     }
 
     conn.upsertVertex(f"{vertex}", f"{id}", event_attributes)
@@ -422,11 +399,9 @@ def relate_key_symptoms(symptoms, disease):
         disease_id = str(v_id)[2:-2]
     try:
         df = conn.getVertexDataFrame(vertex_symptom)
-        print("KEY SYMPTOMS", symptoms, disease, disease_id)
         for symptom in symptoms:
             name=symptom.lower()
             if name in df['name'].values:
-                print("EXSISTING SYMPTOM", name)
                 result = df.loc[df['name'] == name]
                 v_id = result['v_id'].values
                 symptom_id = str(v_id)[2:-2]
@@ -445,5 +420,5 @@ def relate_key_symptoms(symptoms, disease):
                 symptoms_id_list.append(symptom_id)
         return(disease_id, symptoms_id_list)
     except:
-        print("err")
         return("err")
+

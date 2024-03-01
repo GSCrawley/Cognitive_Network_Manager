@@ -1,18 +1,21 @@
 import os
 import config
+import dotenv
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request, session
+from flask_cors import CORS
 import requests, json, threading
 import argparse
 from tigerGraph.tigerGraph import get_user_profile, check_existing_symptom, check_existing_disease,\
                        create_new_patient_vertex, user_login, create_new_provider_vertex,\
                        care_provider_login, get_provider_profile, provider_add_patient, confirm_diagnosis,\
                        get_patient_info, get_symptom_info, creat_new_location_vertex, check_existing_risk_factors, \
-                       check_existing_risk_factors_for_patient, create_event, relate_key_symptoms #,get_diseases_id
+                       check_existing_risk_factors_for_patient, create_event, relate_key_symptoms, get_patient_graph_visual #,get_diseases_id
 
-from stats import do_stats_stuff
+# from stats import do_stats_stuff
 
 app = Flask(__name__)
+CORS(app)
 
 # TODO:
 # Show disease risk factors and or comorbidities (patient risk to disease)
@@ -31,17 +34,16 @@ def check_for_server(url_lst):
         try:
             response = requests.get(url)
             if response.status_code == 200:
-                print("Server is running: ", url)
                 return url
             else:
-                print("Server is not running")
+                return("Server is not running")
         except requests.exceptions.RequestException as e:
-            print("Request error:", e)
+            return(f"ERR,{url}")
             
 @app.route('/', methods = ['GET'])
 def test():
     if(request.method == 'GET'):
-        data = "hello Class!"
+        data = "CNM SERVER!!!"
         return jsonify({'data': data})
 
 @app.route('/KAN_server', methods=['GET'])
@@ -55,13 +57,11 @@ def KAN_server():
 @app.route('/patient_server', methods=['GET'])
 def patient_server():
     user_ip = request.remote_addr
-    print("IP: ", user_ip)
-    print("WHATS GOING ON?")
     # TODO:
         # get ip location 
         # connect to nearest edge cloud
-    url_lst = [config.PURL1, config.PURL2]
-    # url_lst = [config.PURL1]
+
+    url_lst = [config.PURL1]
     test_url = check_for_server(url_lst)
     data = {'url': test_url}
     return jsonify(data)
@@ -69,9 +69,6 @@ def patient_server():
 @app.route('/care_provider_server', methods=['GET'])
 def care_provider_server():
     user_ip = request.remote_addr
-    print("IP: ", user_ip)
-    print("PROVIDER LOGIN")
-    # url_lst = [config.CPURL1] 
     url_lst = [config.CPURL1]
     test_url = check_for_server(url_lst)
     data = {'url': test_url}
@@ -81,14 +78,10 @@ def care_provider_server():
 @app.route('/symptoms_server', methods=['GET'])
 def symptoms_server():
     user_ip = request.remote_addr
-    print("IP: ", user_ip)
-    print("WHATS GOING ON?")
     # TODO:
         # get ip location 
         # connect to nearest edge cloud
-    # url_lst = [config.SURL1]
     url_lst = [config.SURL1]
-    print("SURL: ",url_lst)
     test_url = check_for_server(url_lst)
     data = {'url': test_url}
     return jsonify(data)
@@ -96,14 +89,10 @@ def symptoms_server():
 @app.route('/disease_server', methods=['GET'])
 def disease_server():
     user_ip = request.remote_addr
-    print("IP: ", user_ip)
-    print("WHATS GOING ON?")
     # TODO:
         # get ip location 
         # connect to nearest edge cloud
-    # url_lst = [config.DURL1]
     url_lst = [config.DURL1]
-    print("SURL: ",url_lst)
     test_url = check_for_server(url_lst)
     data = {'url': test_url}
     return jsonify(data)
@@ -111,14 +100,10 @@ def disease_server():
 @app.route('/risk_factors_server', methods=['GET'])
 def risk_factor_server():
     user_ip = request.remote_addr
-    print("IP: ", user_ip)
-    print("WHATS GOING ON?")
     # TODO:
         # get ip location 
         # connect to nearest edge cloud
-    # url_lst = [config.DURL1]
     url_lst = [config.RFURL1]
-    print("RURL: ",url_lst)
     test_url = check_for_server(url_lst)
     data = {'url': test_url}
     return jsonify(data)
@@ -126,14 +111,11 @@ def risk_factor_server():
 @app.route('/event_server', methods=['GET', 'POST'])
 def event_server():
     user_ip = request.remote_addr
-    print("IP: ", user_ip)
-    print("WHATS GOING ON?")
     # TODO:
         # get ip location 
         # connect to nearest edge cloud
     # url_lst = [config.DURL1]
     url_lst = [config.EURL1]
-    print("EURL: ",url_lst)
     test_url = check_for_server(url_lst)
     data = {'url': test_url}
     return jsonify(data)
@@ -151,7 +133,6 @@ def register():
     location = data['location']
 
     new_patient_id = create_new_patient_vertex(first_name, last_name, username, password, email, DOB)
-    print(new_patient_id)
     # location_data(new_patient_id, location)
     return jsonify(new_patient_id)
 
@@ -218,7 +199,6 @@ def add_patient():
     patient_id_data = data['patient']
     provider_id_data = data['provider']
     result = get_user_profile(patient_id_data)
-    print(result)
     if result == [{'User': []}]:
         return jsonify(result[0])
     else:
@@ -240,9 +220,7 @@ def disease_data():
     current_user = data['identity']
     current_user_symptoms = json.loads(data['symptoms'])
     user_data = get_patient_info(current_user)
-    print("USER DATA:", user_data)
     symptom_data = get_symptom_info(current_user_symptoms)
-    print("SYMPTOM DATA:", symptom_data)
     json_list_data = json.dumps(symptom_data)
     return jsonify(user_data, json_list_data)
 
@@ -251,11 +229,8 @@ def diseases():
     data = request.get_json()
     diseases_list = json.loads(data['diseases'])
     symptoms_list = json.loads(data['symptoms'])
-    print(diseases_list)
-    print(symptoms_list)
     result = check_existing_disease(diseases_list, symptoms_list)
     result = json.dumps(result)
-    print("Result: ", result)
     return jsonify(result)
 
 # @app.route('/diseases_id', methods=['GET', 'POST'])
@@ -272,7 +247,6 @@ def disease_stats():
     disease = data['item']
     symptoms_list = json.loads(data['message'])
     symptoms = get_symptom_info(data['message'])
-    print("STATS:", disease, symptoms)
 
     stats = do_stats_stuff(disease, symptoms)
     return jsonify(stats)
@@ -283,7 +257,6 @@ def diagnose():
     patient_id = data['patient_id']
     disease_name = data['disease_name']
     care_provider_id = data['care_provider_id']
-    print(disease_name, patient_id)
     result = confirm_diagnosis(disease_name, patient_id, care_provider_id)
     return jsonify(result)
 
@@ -304,7 +277,6 @@ def risk_factors_disease_relationship():
     patient_risk_factors_list = risk_factor_name_lists[1]
     disease_id = risk_factor_name_lists[2]
     risk_factor_id_list = risk_factor_name_lists[3]
-    print("PRFL", patient_risk_factors_list)
     return jsonify(risk_factors_name_list, patient_risk_factors_list, disease_id, risk_factor_id_list)
 
 
@@ -313,7 +285,6 @@ def risk_factors_patient_relationship():
     data = request.get_json()
     risk_factors = data['risk_factors']
     patient_id = data['patient_id']
-    print("RISK: ", risk_factors, patient_id)
     risk_factors_id_list = check_existing_risk_factors_for_patient(risk_factors, patient_id)
 
     return jsonify(risk_factors_id_list)
@@ -345,19 +316,26 @@ def add_event():
     send_edge_name = data['send_edge_name']
     receive_edge_name = data['receive_edge_name']
     action = data['action']
-    # print("THIS:",vertex1_id_list, vertex2_id_list)
+
+    """EVENTS ARE NOT WORKING FOR SOME REASON"""
     add_event_thread = threading.Thread(target=create_event, args=(vertex1_id_list, vertex2_id_list, send_vertex, receive_vertex, send_edge_name, receive_edge_name, action))
     add_event_thread.start()
-    # create_event(vertex1_id_list, vertex2_id_list, send_vertex, receive_vertex, send_edge_name, receive_edge_name, action)
-    return('hi')
+    return ('hi')
 
+@app.route('/graph-visual', methods=['GET', 'POST'])
+def graph_visual_data():
+    data = request.get_json()
+    graph_data, leaf_dict = get_patient_graph_visual(data['identity'])
 
+    graph_data = json.dumps(graph_data)
+    return jsonify(graph_data, leaf_dict)
 
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--port", type=int, default=6000, help="Port to run the server on")
+    parser.add_argument("--port", type=int, default=8010, help="Port to run the server on")
+    # parser.add_argument("--port", type=int, default=5001, help="Port to run the server on")
     args = parser.parse_args()
     port = args.port
     app.run(host="0.0.0.0", port=port)

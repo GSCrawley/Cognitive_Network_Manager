@@ -50,7 +50,6 @@ def event_snapshot(event_id, timestamp, action, vertex1_id_list, vertex2_id_list
         history = history[0]['result'][0]['attributes']['result.event']
         connect_history(history, new_vertex_id, send_vertex, event_id)
 
-
     for id in vertex2_id_list:
         new_vertex_id = update_attributes(event_id, receive_vertex, id, receive_edge_name)
         if vertex1_id_list[0] == "genesis":
@@ -61,7 +60,6 @@ def event_snapshot(event_id, timestamp, action, vertex1_id_list, vertex2_id_list
 
     # # GET event edges
     parent_event_thread = threading.Thread(target=connect_parent, args=(event_id,))
-    # connect_parent(event_id)
     parent_event_thread.start()
     return()
 
@@ -77,20 +75,22 @@ def update_attributes(event_id, vertex, id, edge):
         vertex_id = f"S{str(unique_id)[:8]}"
     elif id[0:1] == "D":
         vertex_id = f"D{str(unique_id)[:8]}"
+
     data = conn1.getVerticesById(vertex, id)
     attributes = data[0]['attributes']
     attributes["identity"] = str(id)
     
     events = attributes['event']
-    keylist = []
-    valuelist = []
-    for key, value in events.items():
-        keylist.append(key)
-        valuelist.append(value)
-    attributes["event"] = {
-            "keylist": keylist,
-            "valuelist": valuelist,
-        }
+    times = attributes['time']
+    eventlist = []
+    timelist = []
+    for event in events:
+        eventlist.append(event)
+    for time in times:
+        timelist.append(time)
+
+    attributes['event'] = eventlist
+    attributes['time'] = timelist
     conn2.upsertVertex(f"{vertex}", f"{vertex_id}", attributes)
 
     properties = {"weight": 5}
@@ -98,11 +98,13 @@ def update_attributes(event_id, vertex, id, edge):
     return(vertex_id)
 
 def connect_history(history, new_vertex_id, vertex, event_id):
-    items = [(int(time), value) for time, value in history.items()]
+    # items = [(int(time), value) for time, value in history.items()]
     # Sort the list of tuples by timestamp
-    sorted_items = sorted(items, key=lambda x: x[0])
+    # sorted_items = sorted(items, key=lambda x: x[0])
+    sorted_items = history
     if len(sorted_items) > 1:
-        latest_event = sorted_items[-2][1]
+        # latest_event = sorted_items[-2][1]
+        latest_event = sorted_items[0]
         data = conn2.getEdges("Event", latest_event)
         connect_self(data, vertex, new_vertex_id)
 
@@ -123,7 +125,8 @@ def connect_self(data, vertex, new_vertex_id):
 
         if vertex == item["to_type"]:
             prev = conn2.getVerticesById(vertex, item["to_id"])
-            prev = prev[0]['attributes']['identity']
+            prev = prev[0]['attributes']['identity'] 
+
             curr = conn2.getVerticesById(vertex, new_vertex_id)
             curr = curr[0]['attributes']['identity']
             if prev == curr:
@@ -192,7 +195,6 @@ def connect_parent(event_id):
         properties = {"weight": 5}
         for child_id in child_ids:
             conn2.upsertEdge("Patient", f"{parent_id}", "exhibits", "Risk_Factors", f"{child_id}", f"{properties}")
-        # print("EVENT INFO:", child_ids)
 
     elif event_data[0]['attributes']['action'] == "Risk Factors Disease":
         parent_id = ""
@@ -203,11 +205,9 @@ def connect_parent(event_id):
                 parent_id = e_edges[1]['to_id']
             elif vertex['to_type'] == "Risk_Factors":
                 child_ids.append(vertex['to_id'])
-        # print("VERTEX INFO", e_edges)
         properties = {"weight": 5}
         for child_id in child_ids:
             conn2.upsertEdge("Disease", f"{parent_id}", "reverse_reinforces", "Risk_Factors", f"{child_id}", f"{properties}")
-        # print("EVENT INFO:", event_edges)
 
     elif event_data[0]['attributes']['action'] == "Key Symptoms":
         parent_id = ""
@@ -221,7 +221,6 @@ def connect_parent(event_id):
         properties = {"weight": 5}
         for child_id in child_ids:
             conn2.upsertEdge("Disease", f"{parent_id}", "reverse_indicates", "Symptom", f"{child_id}", f"{properties}")
-        print("INFO:", parent_id, child_ids)
 
 
         # Build case of rare disease, common disease, uncommon disease with similar symptoms
