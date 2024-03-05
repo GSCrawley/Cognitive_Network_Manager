@@ -12,6 +12,8 @@ from tigerGraph.tigerGraph import get_user_profile, check_existing_symptom, chec
                        get_patient_info, get_symptom_info, creat_new_location_vertex, check_existing_risk_factors, \
                        check_existing_risk_factors_for_patient, create_event, relate_key_symptoms, get_patient_graph_visual #,get_diseases_id
 
+from tigerGraph.eventGraph import get_patient_event_visual
+
 # from stats import do_stats_stuff
 
 app = Flask(__name__)
@@ -330,12 +332,19 @@ def graph_visual_data():
     graph_data = json.dumps(graph_data)
     return jsonify(graph_data, leaf_dict)
 
+@app.route('/event-visual', methods=['GET', 'POST'])
+def event_visual_data():
+    data = request.get_json()
+    print("DATA: ", data)
+    graph_data = get_patient_event_visual(data['identity'])
+    print("Graph: ", graph_data)
+    return jsonify(graph_data)
+
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8010, help="Port to run the server on")
-    # parser.add_argument("--port", type=int, default=5001, help="Port to run the server on")
     args = parser.parse_args()
     port = args.port
     app.run(host="0.0.0.0", port=port)

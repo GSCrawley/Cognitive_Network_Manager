@@ -222,6 +222,42 @@ def connect_parent(event_id):
         for child_id in child_ids:
             conn2.upsertEdge("Disease", f"{parent_id}", "reverse_indicates", "Symptom", f"{child_id}", f"{properties}")
 
+def get_patient_event_visual(id_value):
+    # events = []
+    # sensors = []
+    # actuators = []
+    edge_dict = {}
+    if id_value != None:
+        for event in id_value:
+            edge_info = conn2.getEdges("Event", event)
+            # print("event: ", edge_info)
+            # print()
+            if len(edge_info) > 1:
+                sensor_list = []
+                for i in range(len(edge_info)):
+                    sensor_list.append(edge_info[i]['to_id'])
+                # actuator = edge_info[1]['to_id']
+                edge_dict[event] = [sensor_list][0]
+        print("EDGE: ", edge_dict)
+
+        # result = {item['v_id']: [item['attributes']['sensor'], item['attributes']['actuator']] for item in id_value}
+        # for item in edge_info:
+        #     events.append(item['v_id'])
+        #     sensors.append(item['attributes']['sensor'][0])
+        #     actuators.append(item['attributes']['actuator'][0])
+        # print("LISTS: ", events, sensors, actuators)
+
+        # for i in id_value:
+        #     key = i
+        #     # get vertex info not edge info
+        #     edge_info = conn2.getEdges("Event", key)
+        #     value = edge_info[0]['to_id']
+        #     root[key] = value
+        # print("ROOT: ", root)
+        return(edge_dict)
+        # return(events, sensors, actuators)
+    return("hi")
+
 
         # Build case of rare disease, common disease, uncommon disease with similar symptoms
         # SINGLE DISEASE, first patient, covid
