@@ -66,22 +66,47 @@ def get_user_profile(id_value):
 
 def get_patient_graph_visual(id_value):
     root = conn.getEdges("Patient", f"{id_value}")
-    edge_list = []
     edge_dict = {}
+    root_dict = {}
     for edge in root:
-        edge_list.append(edge['to_id'])
-    for edge in edge_list:
+        to_id = edge['to_id']
+        if to_id[0] == 'S':
+            name = conn.getVerticesById('Symptom', to_id)
+            name = name[0]['attributes']['name']
+            # root_dict[to_id] = name
+        elif to_id[0] == 'D':
+            name = conn.getVerticesById('Disease', to_id)
+            name = name[0]['attributes']['name']
+            # root_dict[to_id] = name
+        elif to_id[0] == 'R':
+            name = conn.getVerticesById('Risk_Factors', to_id)
+            name = name[0]['attributes']['name']
+            # root_dict[to_id] = name
+        elif to_id[0] == 'C':
+            name = conn.getVerticesById('Care_Provider', to_id)
+            name = name[0]['attributes']['name']
+            # root_dict[to_id] = name
+        elif to_id[0] == 'E':
+            name = conn.getVerticesById('Event', to_id)
+            name = name[0]['attributes']['action']
+        root_dict[to_id] = name
+
+    for edge in root_dict:
         if edge[0] == 'S':
             branch = conn.getEdges("Symptom", f"{edge}")
             for leaf in branch:
+                leaf_dict = {}
                 if leaf['to_id'][0] == "D":
+                    name = conn.getVerticesById('Disease', leaf['to_id'])
+                    name = name[0]['attributes']['name']
                     leaf_from_id = leaf['from_id']
                     if leaf_from_id in edge_dict:
-                        edge_dict[leaf_from_id].append(leaf['to_id'])
+                        edge_dict[leaf_from_id].append({leaf['to_id']: name})
                     else:
-                        edge_dict[leaf_from_id] = [leaf['to_id']]
+                        edge_dict[leaf_from_id] = [{leaf['to_id']: name}]
 
-    return edge_list, edge_dict
+    # return edge_list, edge_dict
+    return root_dict, edge_dict
 
 def get_provider_profile(id_value):
     result = conn.runInstalledQuery("getProviderProfile", {"id_value": id_value})

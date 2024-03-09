@@ -329,16 +329,16 @@ def graph_visual_data():
     data = request.get_json()
     graph_data, leaf_dict = get_patient_graph_visual(data['identity'])
 
-    graph_data = json.dumps(graph_data)
+    # graph_data = json.dumps(graph_data)
     return jsonify(graph_data, leaf_dict)
 
 @app.route('/event-visual', methods=['GET', 'POST'])
 def event_visual_data():
     data = request.get_json()
-    print("DATA: ", data)
-    graph_data = get_patient_event_visual(data['identity'])
-    print("Graph: ", graph_data)
-    return jsonify(graph_data)
+    # print("DATA: ", data)
+    root_data, edge_data = get_patient_event_visual(data['identity'])
+    # print("Graph: ", graph_data)
+    return jsonify(root_data, edge_data)
 
 
 

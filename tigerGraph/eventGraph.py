@@ -227,34 +227,41 @@ def get_patient_event_visual(id_value):
     # sensors = []
     # actuators = []
     edge_dict = {}
+    event_dict = {}
     if id_value != None:
         for event in id_value:
             edge_info = conn2.getEdges("Event", event)
             # print("event: ", edge_info)
-            # print()
+            event_action = conn2.getVerticesById('Event', event)
+            event_action = event_action[0]['attributes']['action']
+            event_dict[event] = event_action
             if len(edge_info) > 1:
                 sensor_list = []
                 for i in range(len(edge_info)):
-                    sensor_list.append(edge_info[i]['to_id'])
+                    to_id = edge_info[i]['to_id']
+                    if to_id[0] == "P":
+                        name = conn2.getVerticesById('Patient', to_id)
+                        name = name[0]['attributes']['first_name']
+                    elif to_id[0] == "C":
+                        name = conn2.getVerticesById('Care_Provider', to_id)
+                        name = name[0]['attributes']['name']
+                    elif to_id[0] == "S":
+                        name = conn2.getVerticesById('Symptom', to_id)
+                        name = name[0]['attributes']['name']
+                    elif to_id[0] == "D":
+                        name = conn2.getVerticesById('Disease', to_id)
+                        name = name[0]['attributes']['name']
+                    elif to_id[0] == "R":
+                        name = conn2.getVerticesById('Risk_Factors', to_id)
+                        name = name[0]['attributes']['name']
+                    elif to_id[0] == "E":
+                        name = conn2.getVerticesById('Event', to_id)
+                        name = name[0]['attributes']['action']
+                    sensor_list.append({to_id: name})
                 # actuator = edge_info[1]['to_id']
+                # print("SENSOR LIST: ", sensor_list)
                 edge_dict[event] = [sensor_list][0]
-        print("EDGE: ", edge_dict)
-
-        # result = {item['v_id']: [item['attributes']['sensor'], item['attributes']['actuator']] for item in id_value}
-        # for item in edge_info:
-        #     events.append(item['v_id'])
-        #     sensors.append(item['attributes']['sensor'][0])
-        #     actuators.append(item['attributes']['actuator'][0])
-        # print("LISTS: ", events, sensors, actuators)
-
-        # for i in id_value:
-        #     key = i
-        #     # get vertex info not edge info
-        #     edge_info = conn2.getEdges("Event", key)
-        #     value = edge_info[0]['to_id']
-        #     root[key] = value
-        # print("ROOT: ", root)
-        return(edge_dict)
+        return(event_dict, edge_dict)
         # return(events, sensors, actuators)
     return("hi")
 
